@@ -1,0 +1,2335 @@
+<!DOCTYPE html>
+<html lang="pt-pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Financeiro</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+            --bg-body: #f1f5f9;
+            --bg-card: #ffffff;
+            --text-main: #0f172a;
+            --text-sub: #64748b;
+            --sidebar-width-collapsed: 70px;
+            --sidebar-width-expanded: 240px;
+            --transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            --expense-color: #ef4444;
+            --income-color: #10b981;
+            --notification-color: #f59e0b;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--bg-body); color: var(--text-main); min-height: 100vh; }
+
+        /* --- AUTH SCREEN --- */
+        #authScreen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-body); z-index: 3000;
+            display: flex; align-items: center; justify-content: center; padding: 20px;
+        }
+        .auth-card {
+            background: var(--bg-card); padding: 40px; border-radius: 24px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05); width: 100%; max-width: 400px; text-align: center;
+        }
+        .form-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; text-align: left; }
+        .form-control { padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 1rem; width: 100%; }
+        .select-control { padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 1rem; width: auto; background: white; }
+        .btn {
+            padding: 12px 30px; border: none; border-radius: 12px; font-weight: 600;
+            cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+        }
+        .btn-primary { background: var(--primary-color); color: white; }
+        .btn-ghost { background: transparent; color: var(--text-sub); font-size: 0.85rem; margin-top: 10px; }
+        .btn-sm { padding: 8px 16px; font-size: 0.9rem; width: auto; }
+        .btn-danger { background: var(--expense-color); color: white; }
+
+        /* --- HEADER --- */
+        header {
+            display: flex; align-items: center; padding: 0 5%; background: var(--bg-card);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.03); position: fixed; top: 0; left: 0; width: 100%; height: 70px; z-index: 1100;
+        }
+        .header-content { 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            width: 100%; 
+        }
+        .header-left { 
+            display: flex; 
+            align-items: center; 
+            flex: 1; 
+            cursor: pointer;
+            gap: 15px;
+        }
+        .date-display-compact { 
+            font-size: 0.85rem; 
+            color: var(--text-sub); 
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .header-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .date-selector {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .notification-badge {
+            position: relative;
+            cursor: pointer;
+        }
+        .notification-icon {
+            font-size: 1.3rem;
+            color: var(--text-sub);
+            transition: 0.3s;
+        }
+        .notification-icon.has-notifications {
+            color: var(--notification-color);
+        }
+        .notification-count {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: var(--notification-color);
+            color: white;
+            font-size: 0.7rem;
+            font-weight: bold;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .menu-toggle { font-size: 1.5rem; color: var(--primary-color); cursor: pointer; padding: 10px; }
+
+        /* --- SIDEBAR --- */
+        .sidebar {
+            position: fixed; top: 85px; right: 15px; height: calc(100vh - 100px);
+            width: var(--sidebar-width-collapsed); background: var(--bg-card);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.08); border-radius: 24px;
+            transition: var(--transition); z-index: 1000; padding: 20px 0; overflow: hidden;
+        }
+        .sidebar.expanded { width: var(--sidebar-width-expanded); }
+        .nav-list {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        .nav-link {
+            display: flex; align-items: center; text-decoration: none; color: var(--text-sub);
+            height: 55px; margin: 0 10px; border-radius: 16px; transition: 0.3s;
+        }
+        .nav-link i { min-width: 50px; font-size: 1.3rem; display: flex; justify-content: center; }
+        .nav-link span { opacity: 0; font-weight: 600; white-space: nowrap; }
+        .sidebar.expanded .nav-link span { opacity: 1; }
+        .nav-link.active { color: var(--primary-color); background: #f1f5f9; }
+
+        /* --- MAIN CONTENT --- */
+        main { margin-top: 70px; margin-right: 85px; padding: 40px; transition: 0.4s; }
+        .page { display: none; }
+        .page.active { display: block; }
+
+        .records-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .records-table th { text-align: left; padding: 15px; border-bottom: 2px solid #e2e8f0; color: var(--text-sub); }
+        .records-table td { padding: 15px; border-bottom: 1px solid #f1f5f9; }
+        .amount.expense { color: var(--expense-color); font-weight: 700; }
+        .amount.income { color: var(--income-color); font-weight: 700; }
+        
+        .payment-item {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid var(--notification-color);
+            transition: 0.3s;
+        }
+        .payment-item.paid {
+            border-left-color: var(--income-color);
+            opacity: 0.7;
+        }
+        .payment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .category-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: #e2e8f0;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: var(--text-sub);
+        }
+        .payment-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .btn-paid {
+            background: var(--income-color);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        /* --- CATEGORY MANAGEMENT --- */
+        .category-section {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .categories-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .category-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #e2e8f0;
+        }
+        
+        /* --- GOALS --- */
+        .goal-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid var(--primary-color);
+        }
+        .goal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .goal-progress {
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        .goal-progress-bar {
+            height: 100%;
+            background: var(--primary-color);
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+        
+        /* --- NOTIFICATION MODAL --- */
+        .notification-modal {
+            display: none;
+            position: fixed;
+            top: 80px;
+            right: 100px;
+            width: 350px;
+            background: var(--bg-card);
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            z-index: 2000;
+            padding: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .notification-modal.active {
+            display: block;
+        }
+        .notification-item {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 0.9rem;
+        }
+        .notification-item:last-child {
+            border-bottom: none;
+        }
+        .notification-warning {
+            color: var(--notification-color);
+            font-weight: 600;
+        }
+
+        /* --- MODALS --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            padding: 20px;
+        }
+        .modal-content {
+            background: var(--bg-card);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-sub);
+        }
+        
+        /* --- OVERLAY --- */
+        .overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.2); opacity: 0; visibility: hidden; z-index: 999;
+            transition: var(--transition);
+        }
+        .overlay.active { opacity: 1; visibility: visible; }
+
+        /* --- GRÁFICOS --- */
+        .chart-container {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 20px;
+            margin-top: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+        .charts-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        @media (max-width: 1024px) {
+            .charts-row {
+                grid-template-columns: 1fr;
+            }
+        }
+        .chart-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: var(--text-main);
+        }
+        .no-data-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-sub);
+        }
+        .no-data-message i {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: #cbd5e1;
+        }
+
+        /* --- RESPONSIVE --- */
+        @media (max-width: 768px) {
+            main { margin-right: 0; padding: 20px; }
+            .sidebar { right: 10px; bottom: 15px; top: auto; height: auto; }
+            .header-content { flex-direction: column; align-items: flex-start; gap: 10px; }
+            .header-right { width: 100%; justify-content: space-between; }
+            .date-selector { flex-wrap: wrap; }
+            .notification-modal {
+                right: 20px;
+                width: calc(100% - 40px);
+            }
+            .categories-grid {
+                grid-template-columns: 1fr;
+            }
+            .modal-content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="authScreen">
+        <div class="auth-card">
+            <h2 id="authTitle">Entrar no Sistema</h2>
+            <p id="authDesc" style="color: var(--text-sub); margin-bottom: 20px;">Organize as suas finanças agora</p>
+            <div class="form-group">
+                <label>E-mail</label>
+                <input type="email" id="email" class="form-control" placeholder="exemplo@email.com">
+            </div>
+            <div class="form-group">
+                <label>Senha</label>
+                <input type="password" id="password" class="form-control" placeholder="••••••••">
+            </div>
+            <button class="btn btn-primary" id="mainAuthBtn" onclick="handleAuth()">Entrar</button>
+            <button class="btn btn-ghost" onclick="forgotPassword()">Esqueci a minha senha</button>
+            <div id="authFooter" style="margin-top: 20px; font-size: 0.9rem;">
+                Não tem conta? <span onclick="toggleAuthMode()" style="color: var(--primary-color); cursor: pointer; font-weight: 600;">Criar conta</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para metas de despesa -->
+    <div class="modal-overlay" id="expenseGoalModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Nova Meta de Despesa</h3>
+                <button class="modal-close" onclick="closeExpenseGoalModal()">×</button>
+            </div>
+            <div class="form-group">
+                <label>Categoria:</label>
+                <select id="expenseGoalCategory" class="form-control">
+                    <option value="">Selecione uma categoria</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Valor máximo (R$):</label>
+                <input type="number" id="expenseGoalTarget" class="form-control" step="0.01" min="0.01" placeholder="0,00">
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-primary" onclick="saveExpenseGoal()">Salvar Meta</button>
+                <button class="btn btn-ghost" onclick="closeExpenseGoalModal()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para metas de ganho -->
+    <div class="modal-overlay" id="incomeGoalModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Nova Meta de Ganho</h3>
+                <button class="modal-close" onclick="closeIncomeGoalModal()">×</button>
+            </div>
+            <div class="form-group">
+                <label>Categoria:</label>
+                <select id="incomeGoalCategory" class="form-control">
+                    <option value="">Selecione uma categoria</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Valor mínimo (R$):</label>
+                <input type="number" id="incomeGoalTarget" class="form-control" step="0.01" min="0.01" placeholder="0,00">
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-primary" style="background: var(--income-color);" onclick="saveIncomeGoal()">Salvar Meta</button>
+                <button class="btn btn-ghost" onclick="closeIncomeGoalModal()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de importação -->
+    <div class="modal-overlay" id="importModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Importar Dados</h3>
+                <button class="modal-close" onclick="closeImportModal()">×</button>
+            </div>
+            <div class="form-group">
+                <label>Selecione o tipo de dados:</label>
+                <select id="importType" class="form-control">
+                    <option value="expenses">Despesas</option>
+                    <option value="income">Ganhos</option>
+                    <option value="payments">Pagamentos</option>
+                    <option value="expenseCategories">Categorias de Despesas</option>
+                    <option value="incomeCategories">Categorias de Ganhos</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Selecione o arquivo (JSON):</label>
+                <input type="file" id="importFile" class="form-control" accept=".json">
+            </div>
+            <div style="margin-top: 20px;">
+                <button class="btn btn-primary" style="background: var(--income-color); width: 100%;" onclick="processImport()">
+                    <i class="fa-solid fa-file-import"></i> Importar Dados
+                </button>
+            </div>
+            <div style="margin-top: 15px; padding: 15px; background: #f8fafc; border-radius: 8px;">
+                <p style="font-size: 0.85rem; color: var(--text-sub);">
+                    <strong>Nota:</strong> O arquivo deve estar no formato JSON. Use primeiro a função de exportação para ver o formato correto.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+    <header>
+        <div class="header-content">
+            <div class="header-left" onclick="goToDashboard()">
+                <div class="date-display-compact" id="currentDate"></div>
+                <div class="header-title">Meu Financeiro</div>
+            </div>
+            <div class="header-right">
+                <div class="date-selector">
+                    <select id="monthSelect" class="select-control" onchange="updateSelectedDate()">
+                        <option value="01">Jan</option>
+                        <option value="02">Fev</option>
+                        <option value="03">Mar</option>
+                        <option value="04">Abr</option>
+                        <option value="05">Mai</option>
+                        <option value="06">Jun</option>
+                        <option value="07">Jul</option>
+                        <option value="08">Ago</option>
+                        <option value="09">Set</option>
+                        <option value="10">Out</option>
+                        <option value="11">Nov</option>
+                        <option value="12">Dez</option>
+                    </select>
+                    <select id="yearSelect" class="select-control" onchange="updateSelectedDate()">
+                        <!-- Opções serão preenchidas via JavaScript (2026-2030) -->
+                    </select>
+                </div>
+                <div class="notification-badge" id="notificationBadge" onclick="toggleNotifications()">
+                    <i class="fa-solid fa-bell notification-icon" id="notificationIcon"></i>
+                    <div class="notification-count" id="notificationCount" style="display: none;">0</div>
+                </div>
+                <div class="menu-toggle" id="menuToggleBtn"><i class="fa-solid fa-bars-staggered"></i></div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Modal de Notificações -->
+    <div class="notification-modal" id="notificationModal">
+        <h3 style="margin-bottom: 15px;">Notificações</h3>
+        <div id="notificationsList">
+            <!-- Notificações serão inseridas aqui -->
+        </div>
+    </div>
+
+    <aside class="sidebar" id="sidebar">
+        <nav class="nav-list">
+            <a href="#" class="nav-link" data-page="dashboard"><i class="fa-solid fa-chart-line"></i> <span>Dashboard</span></a>
+            <a href="#" class="nav-link" data-page="expenses"><i class="fa-solid fa-receipt"></i> <span>Despesas</span></a>
+            <a href="#" class="nav-link" data-page="income"><i class="fa-solid fa-wallet"></i> <span>Ganhos</span></a>
+            <a href="#" class="nav-link" data-page="payments"><i class="fa-solid fa-credit-card"></i> <span>Pagar</span></a>
+            <a href="#" class="nav-link" data-page="goals"><i class="fa-solid fa-bullseye"></i> <span>Metas</span></a>
+            <a href="#" class="nav-link" data-page="data"><i class="fa-solid fa-database"></i> <span>Dados</span></a>
+            <a href="#" class="nav-link" style="margin-top: auto; color: var(--expense-color);" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i> <span>Sair</span></a>
+        </nav>
+    </aside>
+
+    <main>
+        <div id="dashboard" class="page active">
+            <h1>Olá, <span id="userName">Usuário</span></h1>
+            <p>Seu resumo financeiro.</p>
+            
+            <div style="margin-top: 20px; padding: 20px; background: var(--bg-card); border-radius: 16px;">
+                <h3>Período Selecionado: <span id="selectedPeriodDisplay"></span></h3>
+                <p style="color: var(--text-sub); margin-top: 10px;">Todos os dados são filtrados pelo período selecionado no cabeçalho.</p>
+            </div>
+
+            <!-- Gráficos Despesas vs Metas e Ganhos vs Metas -->
+            <div class="charts-row" id="categoryChartsRow">
+                <div class="chart-container" id="expenseChartContainer">
+                    <div class="chart-title">Despesas vs Metas por Categoria</div>
+                    <canvas id="expenseChart" height="250"></canvas>
+                    <div class="no-data-message" id="noExpenseGoalsMessage" style="display: none;">
+                        <i class="fa-solid fa-chart-pie"></i>
+                        <p>Nenhuma meta de despesa cadastrada para este mês</p>
+                    </div>
+                </div>
+                
+                <div class="chart-container" id="incomeChartContainer">
+                    <div class="chart-title">Ganhos vs Metas por Categoria</div>
+                    <canvas id="incomeChart" height="250"></canvas>
+                    <div class="no-data-message" id="noIncomeGoalsMessage" style="display: none;">
+                        <i class="fa-solid fa-chart-pie"></i>
+                        <p>Nenhuma meta de ganho cadastrada para este mês</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gráfico Evolução Mensal -->
+            <div class="chart-container" id="evolutionChartContainer">
+                <div class="chart-title">Evolução Mensal - Metas vs Realizado</div>
+                <canvas id="evolutionChart" height="150"></canvas>
+                <div class="no-data-message" id="noEvolutionDataMessage" style="display: none;">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <p>Não há dados suficientes para mostrar a evolução mensal</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="expenses" class="page">
+            <h2>Despesas - <span id="expensesPeriod"></span></h2>
+            <div class="form-group">
+                <input type="text" id="expItem" class="form-control" placeholder="Descrição da despesa">
+            </div>
+            <div class="form-group">
+                <input type="number" id="expValue" class="form-control" placeholder="Valor (R$)" step="0.01">
+            </div>
+            <div class="form-group">
+                <select id="expCategory" class="form-control">
+                    <option value="">Selecione uma categoria</option>
+                    <!-- Categorias serão carregadas dinamicamente -->
+                </select>
+            </div>
+            <div class="form-group">
+                <input type="date" id="expDate" class="form-control">
+            </div>
+            <button class="btn btn-primary" style="width: auto;" onclick="addExpense()">
+                <i class="fa-solid fa-plus"></i> Salvar Despesa
+            </button>
+            <table class="records-table">
+                <thead><tr><th>Item</th><th>Categoria</th><th>Valor</th><th>Data</th><th>Ação</th></tr></thead>
+                <tbody id="expensesTable"></tbody>
+            </table>
+        </div>
+
+        <div id="income" class="page">
+            <h2>Ganhos - <span id="incomePeriod"></span></h2>
+            <div class="form-group">
+                <input type="text" id="incItem" class="form-control" placeholder="Descrição do ganho">
+            </div>
+            <div class="form-group">
+                <input type="number" id="incValue" class="form-control" placeholder="Valor (R$)" step="0.01">
+            </div>
+            <div class="form-group">
+                <select id="incCategory" class="form-control">
+                    <option value="">Selecione uma categoria</option>
+                    <!-- Categorias serão carregadas dinamicamente -->
+                </select>
+            </div>
+            <div class="form-group">
+                <input type="date" id="incDate" class="form-control">
+            </div>
+            <button class="btn btn-primary" style="width: auto; background: var(--income-color);" onclick="addIncome()">
+                <i class="fa-solid fa-plus"></i> Salvar Ganho
+            </button>
+            <table class="records-table">
+                <thead><tr><th>Item</th><th>Categoria</th><th>Valor</th><th>Data</th><th>Ação</th></tr></thead>
+                <tbody id="incomeTable"></tbody>
+            </table>
+        </div>
+
+        <div id="goals" class="page">
+            <h2>Metas - <span id="goalsPeriod"></span></h2>
+            
+            <div class="category-section">
+                <h3>Metas de Despesas por Categoria</h3>
+                <div id="expenseGoalsList">
+                    <!-- Metas de despesas serão inseridas aqui -->
+                </div>
+                <button class="btn btn-primary" style="width: auto; margin-top: 15px;" onclick="addExpenseGoal()">
+                    <i class="fa-solid fa-plus"></i> Nova Meta de Despesa
+                </button>
+            </div>
+            
+            <div class="category-section">
+                <h3>Metas de Ganhos por Categoria</h3>
+                <div id="incomeGoalsList">
+                    <!-- Metas de ganhos serão inseridas aqui -->
+                </div>
+                <button class="btn btn-primary" style="width: auto; margin-top: 15px; background: var(--income-color);" onclick="addIncomeGoal()">
+                    <i class="fa-solid fa-plus"></i> Nova Meta de Ganho
+                </button>
+            </div>
+        </div>
+
+        <div id="data" class="page">
+            <h2>Dados - <span id="dataPeriod"></span></h2>
+            
+            <div class="category-section">
+                <h3>Gerenciar Categorias de Despesas</h3>
+                <div class="form-group" style="display: flex; gap: 10px;">
+                    <input type="text" id="newExpenseCategory" class="form-control" placeholder="Nova categoria de despesa">
+                    <button class="btn btn-primary" style="width: auto;" onclick="addExpenseCategory()">
+                        <i class="fa-solid fa-plus"></i> Adicionar
+                    </button>
+                </div>
+                <div class="categories-grid" id="expenseCategoriesList">
+                    <!-- Categorias de despesas serão listadas aqui -->
+                </div>
+            </div>
+            
+            <div class="category-section">
+                <h3>Gerenciar Categorias de Ganhos</h3>
+                <div class="form-group" style="display: flex; gap: 10px;">
+                    <input type="text" id="newIncomeCategory" class="form-control" placeholder="Nova categoria de ganho">
+                    <button class="btn btn-primary" style="width: auto; background: var(--income-color);" onclick="addIncomeCategory()">
+                        <i class="fa-solid fa-plus"></i> Adicionar
+                    </button>
+                </div>
+                <div class="categories-grid" id="incomeCategoriesList">
+                    <!-- Categorias de ganhos serão listadas aqui -->
+                </div>
+            </div>
+
+            <div class="category-section">
+                <h3>Backup e Importação de Dados</h3>
+                
+                <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px;">
+                    <button class="btn btn-primary" onclick="exportToExcel()" style="width: auto;">
+                        <i class="fa-solid fa-file-excel"></i> Exportar para JSON
+                    </button>
+                    
+                    <button class="btn btn-primary" onclick="openImportModal()" style="width: auto; background: var(--income-color);">
+                        <i class="fa-solid fa-file-import"></i> Importar Dados
+                    </button>
+                    
+                    <button class="btn btn-danger" onclick="exportToExcel()" style="width: auto;">
+                        <i class="fa-solid fa-download"></i> Backup Completo
+                    </button>
+                </div>
+                
+                <div style="margin-top: 20px; padding: 15px; background: #f8fafc; border-radius: 8px;">
+                    <p style="font-size: 0.9rem; color: var(--text-sub);">
+                        <strong>Exportação:</strong> Gera um arquivo JSON com todos os seus dados financeiros.<br>
+                        <strong>Importação:</strong> Permite importar dados específicos a partir de arquivos JSON.<br>
+                        <strong>Backup:</strong> Cria um backup completo em formato JSON.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div id="payments" class="page">
+            <h2>Pagar - <span id="paymentsPeriod"></span></h2>
+            
+            <div style="background: var(--bg-card); padding: 20px; border-radius: 16px; margin-bottom: 30px;">
+                <h3 style="margin-bottom: 15px;">Adicionar Conta a Pagar</h3>
+                <div class="form-group">
+                    <input type="text" id="paymentItem" class="form-control" placeholder="Descrição da conta">
+                </div>
+                <div class="form-group">
+                    <input type="number" id="paymentValue" class="form-control" placeholder="Valor (R$)" step="0.01">
+                </div>
+                <div class="form-group">
+                    <select id="paymentCategory" class="form-control">
+                        <option value="">Selecione uma categoria</option>
+                        <!-- Categorias de despesas serão carregadas aqui -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <input type="date" id="paymentDueDate" class="form-control" placeholder="Data de Vencimento">
+                </div>
+                <button class="btn btn-primary" style="width: auto; background: var(--notification-color);" onclick="addPayment()">
+                    <i class="fa-solid fa-plus"></i> Adicionar Conta
+                </button>
+            </div>
+
+            <h3>Contas a Pagar</h3>
+            <div id="paymentsList">
+                <!-- Lista de contas a pagar será inserida aqui -->
+            </div>
+        </div>
+    </main>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAFhPVMxHtF8313MNCmupbGLA8WToyeX5o",
+            authDomain: "meu-financeiro-8d0f4.firebaseapp.com",
+            projectId: "meu-financeiro-8d0f4",
+            storageBucket: "meu-financeiro-8d0f4.firebasestorage.app",
+            messagingSenderId: "299066355372",
+            appId: "1:299066355372:web:08feb88ba15d657a3b3909"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let isLoginMode = true;
+        let selectedDate = {
+            month: new Date().getMonth() + 1,
+            year: new Date().getFullYear()
+        };
+        let notifications = [];
+        let expenseCategories = [];
+        let incomeCategories = [];
+        let expenseChart = null;
+        let incomeChart = null;
+        let evolutionChart = null;
+
+        // Formatar moeda brasileira (R$)
+        const formatCurrency = (value) => {
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+                minimumFractionDigits: 2
+            }).format(value);
+        };
+
+        // Obter data atual no formato YYYY-MM-DD
+        function getCurrentDate() {
+            const today = new Date();
+            return today.toISOString().split('T')[0];
+        }
+
+        // Inicializar seletor de datas (2026-2030)
+        function initializeDateSelector() {
+            const yearSelect = document.getElementById('yearSelect');
+            yearSelect.innerHTML = '';
+            
+            for (let year = 2026; year <= 2030; year++) {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                option.selected = year === selectedDate.year;
+                yearSelect.appendChild(option);
+            }
+            
+            const monthSelect = document.getElementById('monthSelect');
+            monthSelect.value = selectedDate.month.toString().padStart(2, '0');
+            
+            updatePeriodDisplays();
+        }
+
+        // Atualizar data selecionada
+        window.updateSelectedDate = function() {
+            const monthSelect = document.getElementById('monthSelect');
+            const yearSelect = document.getElementById('yearSelect');
+            
+            selectedDate = {
+                month: parseInt(monthSelect.value),
+                year: parseInt(yearSelect.value)
+            };
+            
+            updatePeriodDisplays();
+            checkDuePaymentsNotifications();
+            loadGoals();
+            loadCharts();
+        }
+
+        // Atualizar displays de período
+        function updatePeriodDisplays() {
+            const monthNames = [
+                'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+            ];
+            
+            const periodString = `${monthNames[selectedDate.month - 1]} de ${selectedDate.year}`;
+            
+            document.getElementById('selectedPeriodDisplay').textContent = periodString;
+            document.getElementById('expensesPeriod').textContent = periodString;
+            document.getElementById('incomePeriod').textContent = periodString;
+            document.getElementById('goalsPeriod').textContent = periodString;
+            document.getElementById('dataPeriod').textContent = periodString;
+            document.getElementById('paymentsPeriod').textContent = periodString;
+        }
+
+        // Carregar categorias
+        async function loadCategories() {
+            if (!auth.currentUser) return;
+            
+            // Carregar categorias de despesas
+            const expenseCategoriesRef = collection(db, `users/${auth.currentUser.uid}/expenseCategories`);
+            onSnapshot(expenseCategoriesRef, (snapshot) => {
+                expenseCategories = [];
+                snapshot.forEach(doc => {
+                    expenseCategories.push({
+                        id: doc.id,
+                        ...doc.data()
+                    });
+                });
+                
+                // Atualizar dropdowns de categorias de despesas
+                updateCategoryDropdown('expCategory', expenseCategories);
+                updateCategoryDropdown('paymentCategory', expenseCategories);
+                updateCategoriesList('expenseCategoriesList', expenseCategories, 'expense');
+            });
+            
+            // Carregar categorias de ganhos
+            const incomeCategoriesRef = collection(db, `users/${auth.currentUser.uid}/incomeCategories`);
+            onSnapshot(incomeCategoriesRef, (snapshot) => {
+                incomeCategories = [];
+                snapshot.forEach(doc => {
+                    incomeCategories.push({
+                        id: doc.id,
+                        ...doc.data()
+                    });
+                });
+                
+                // Atualizar dropdowns de categorias de ganhos
+                updateCategoryDropdown('incCategory', incomeCategories);
+                updateCategoriesList('incomeCategoriesList', incomeCategories, 'income');
+            });
+        }
+
+        // Atualizar dropdown de categorias
+        function updateCategoryDropdown(elementId, categories) {
+            const dropdown = document.getElementById(elementId);
+            if (!dropdown) return;
+            
+            // Salvar valor atual
+            const currentValue = dropdown.value;
+            
+            // Limpar opções exceto a primeira
+            dropdown.innerHTML = '<option value="">Selecione uma categoria</option>';
+            
+            // Adicionar categorias
+            categories.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category.name;
+                option.textContent = category.name;
+                dropdown.appendChild(option);
+            });
+            
+            // Restaurar valor anterior se ainda existir
+            if (currentValue && categories.some(c => c.name === currentValue)) {
+                dropdown.value = currentValue;
+            }
+        }
+
+        // Atualizar lista de categorias
+        function updateCategoriesList(elementId, categories, type) {
+            const container = document.getElementById(elementId);
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            if (categories.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-sub); text-align: center;">Nenhuma categoria cadastrada</p>';
+                return;
+            }
+            
+            categories.forEach(category => {
+                const card = document.createElement('div');
+                card.className = 'category-card';
+                card.innerHTML = `
+                    <span>${category.name}</span>
+                    <button class="btn btn-sm btn-danger" onclick="deleteCategory('${type}', '${category.id}')">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // Adicionar categoria de despesa
+        window.addExpenseCategory = async function() {
+            const name = document.getElementById('newExpenseCategory').value.trim();
+            if (!name) {
+                alert("Digite o nome da categoria!");
+                return;
+            }
+            
+            try {
+                await addDoc(collection(db, `users/${auth.currentUser.uid}/expenseCategories`), {
+                    name: name,
+                    createdAt: new Date().toISOString()
+                });
+                
+                document.getElementById('newExpenseCategory').value = '';
+                alert("Categoria de despesa adicionada!");
+            } catch (error) {
+                alert("Erro ao adicionar categoria: " + error.message);
+            }
+        }
+
+        // Adicionar categoria de ganho
+        window.addIncomeCategory = async function() {
+            const name = document.getElementById('newIncomeCategory').value.trim();
+            if (!name) {
+                alert("Digite o nome da categoria!");
+                return;
+            }
+            
+            try {
+                await addDoc(collection(db, `users/${auth.currentUser.uid}/incomeCategories`), {
+                    name: name,
+                    createdAt: new Date().toISOString()
+                });
+                
+                document.getElementById('newIncomeCategory').value = '';
+                alert("Categoria de ganho adicionada!");
+            } catch (error) {
+                alert("Erro ao adicionar categoria: " + error.message);
+            }
+        }
+
+        // Excluir categoria
+        window.deleteCategory = async function(type, categoryId) {
+            if (!confirm("Tem certeza que deseja excluir esta categoria?")) return;
+            
+            try {
+                const collectionName = type === 'expense' ? 'expenseCategories' : 'incomeCategories';
+                await deleteDoc(doc(db, `users/${auth.currentUser.uid}/${collectionName}`, categoryId));
+                alert("Categoria excluída!");
+            } catch (error) {
+                alert("Erro ao excluir categoria: " + error.message);
+            }
+        }
+
+        // Navegar para o dashboard
+        window.goToDashboard = function() {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById('dashboard').classList.add('active');
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            document.querySelector('.nav-link[data-page="dashboard"]').classList.add('active');
+            closeSidebar();
+            closeNotifications();
+            loadCharts();
+        }
+
+        // Fechar sidebar ao clicar fora
+        window.closeSidebar = function() {
+            document.getElementById('sidebar').classList.remove('expanded');
+            document.getElementById('overlay').classList.remove('active');
+        }
+
+        // Alternar notificações
+        window.toggleNotifications = function() {
+            const modal = document.getElementById('notificationModal');
+            modal.classList.toggle('active');
+        }
+
+        function closeNotifications() {
+            document.getElementById('notificationModal').classList.remove('active');
+        }
+
+        // Atualizar badge de notificações
+        function updateNotificationBadge() {
+            const count = notifications.length;
+            const badge = document.getElementById('notificationCount');
+            const icon = document.getElementById('notificationIcon');
+            
+            if (count > 0) {
+                badge.textContent = count;
+                badge.style.display = 'flex';
+                icon.classList.add('has-notifications');
+            } else {
+                badge.style.display = 'none';
+                icon.classList.remove('has-notifications');
+            }
+            
+            updateNotificationsList();
+        }
+
+        // Atualizar lista de notificações
+        function updateNotificationsList() {
+            const list = document.getElementById('notificationsList');
+            list.innerHTML = '';
+            
+            if (notifications.length === 0) {
+                list.innerHTML = '<p style="color: var(--text-sub); text-align: center;">Nenhuma notificação</p>';
+                return;
+            }
+            
+            notifications.forEach(notification => {
+                const item = document.createElement('div');
+                item.className = 'notification-item';
+                item.innerHTML = `
+                    <div class="notification-warning">${notification.title}</div>
+                    <div style="font-size: 0.85rem; margin-top: 5px; color: var(--text-sub);">
+                        ${notification.message}
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        // Verificar pagamentos próximos do vencimento
+        async function checkDuePaymentsNotifications() {
+            notifications = [];
+            
+            if (!auth.currentUser) return;
+            
+            const paymentsRef = collection(db, `users/${auth.currentUser.uid}/payments`);
+            const q = query(paymentsRef, where("paid", "==", false));
+            
+            try {
+                const snapshot = await getDocs(q);
+                const today = new Date();
+                
+                snapshot.forEach(doc => {
+                    const payment = doc.data();
+                    const dueDate = new Date(payment.dueDate);
+                    const diffTime = dueDate - today;
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    
+                    if (diffDays === 1) {
+                        notifications.push({
+                            id: doc.id,
+                            title: "⚠️ Conta Vence Amanhã!",
+                            message: `"${payment.item}" de ${formatCurrency(payment.value)} vence amanhã.`
+                        });
+                    } else if (diffDays === 0) {
+                        notifications.push({
+                            id: doc.id,
+                            title: "🚨 Conta Vence Hoje!",
+                            message: `"${payment.item}" de ${formatCurrency(payment.value)} vence hoje.`
+                        });
+                    } else if (diffDays < 0) {
+                        notifications.push({
+                            id: doc.id,
+                            title: "💀 Conta Vencida!",
+                            message: `"${payment.item}" de ${formatCurrency(payment.value)} está ${Math.abs(diffDays)} dia(s) atrasada.`
+                        });
+                    }
+                });
+                
+                updateNotificationBadge();
+            } catch (error) {
+                console.error("Erro ao verificar pagamentos:", error);
+            }
+        }
+
+        // Adicionar conta a pagar
+        window.addPayment = async function() {
+            const item = document.getElementById('paymentItem').value;
+            const value = parseFloat(document.getElementById('paymentValue').value);
+            const dueDate = document.getElementById('paymentDueDate').value || getCurrentDate();
+            const category = document.getElementById('paymentCategory').value;
+            
+            if (!item || !value || !category) {
+                alert("Preencha todos os campos!");
+                return;
+            }
+            
+            try {
+                await addDoc(collection(db, `users/${auth.currentUser.uid}/payments`), {
+                    item,
+                    value,
+                    dueDate,
+                    category,
+                    paid: false,
+                    paidDate: null,
+                    createdAt: new Date().toISOString(),
+                    month: selectedDate.month,
+                    year: selectedDate.year
+                });
+                
+                // Limpar campos
+                document.getElementById('paymentItem').value = '';
+                document.getElementById('paymentValue').value = '';
+                document.getElementById('paymentDueDate').value = '';
+                document.getElementById('paymentCategory').value = '';
+                
+                alert("Conta adicionada com sucesso!");
+                checkDuePaymentsNotifications();
+            } catch (error) {
+                alert("Erro ao adicionar conta: " + error.message);
+            }
+        }
+
+        // Marcar conta como paga - CORRIGIDO
+        window.markAsPaid = async function(paymentId, paymentData) {
+            if (!confirm("Marcar esta conta como paga?")) return;
+            
+            try {
+                // 1. Atualizar o pagamento como pago
+                const paymentRef = doc(db, `users/${auth.currentUser.uid}/payments`, paymentId);
+                await updateDoc(paymentRef, {
+                    paid: true,
+                    paidDate: new Date().toISOString()
+                });
+                
+                // 2. Adicionar automaticamente como despesa
+                await addDoc(collection(db, `users/${auth.currentUser.uid}/expenses`), {
+                    item: `[PAGO] ${paymentData.item}`,
+                    value: paymentData.value,
+                    date: new Date().toISOString().split('T')[0],
+                    category: paymentData.category,
+                    fromPayment: true,
+                    originalPaymentId: paymentId,
+                    month: selectedDate.month,
+                    year: selectedDate.year,
+                    createdAt: new Date().toISOString()
+                });
+                
+                // 3. Atualizar notificações
+                checkDuePaymentsNotifications();
+                
+                alert("Conta paga e movida para despesas!");
+            } catch (error) {
+                alert("Erro ao processar pagamento: " + error.message);
+            }
+        }
+
+        // Sincronizar pagamentos - ATUALIZADO
+        function syncPayments() {
+            if (!auth.currentUser) return;
+            
+            const paymentsRef = collection(db, `users/${auth.currentUser.uid}/payments`);
+            const q = query(paymentsRef, where("paid", "==", false), orderBy("dueDate", "asc"));
+            
+            onSnapshot(q, (snapshot) => {
+                const container = document.getElementById('paymentsList');
+                container.innerHTML = '';
+                
+                let hasUnpaid = false;
+                
+                snapshot.forEach(doc => {
+                    const payment = doc.data();
+                    const dueDate = new Date(payment.dueDate);
+                    const today = new Date();
+                    const isOverdue = dueDate < today && !payment.paid;
+                    
+                    const paymentElement = document.createElement('div');
+                    paymentElement.className = `payment-item ${payment.paid ? 'paid' : ''}`;
+                    
+                    if (isOverdue) {
+                        paymentElement.style.borderLeftColor = 'var(--expense-color)';
+                    }
+                    
+                    paymentElement.innerHTML = `
+                        <div class="payment-header">
+                            <div>
+                                <strong>${payment.item}</strong>
+                                <div style="font-size: 0.9rem; color: var(--text-sub); margin-top: 5px;">
+                                    Vencimento: ${dueDate.toLocaleDateString('pt-BR')}
+                                </div>
+                            </div>
+                            <div class="payment-actions">
+                                <span class="category-badge">${payment.category}</span>
+                                ${!payment.paid ? 
+                                    `<button class="btn-paid" onclick="markAsPaid('${doc.id}', ${JSON.stringify(payment)})">
+                                        <i class="fa-solid fa-check"></i> Pago
+                                    </button>` : 
+                                    `<span style="color: var(--income-color); font-size: 0.9rem;">
+                                        <i class="fa-solid fa-check-circle"></i> Pago
+                                    </span>`
+                                }
+                            </div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                            <div style="font-size: 1.2rem; font-weight: 700; color: ${isOverdue ? 'var(--expense-color)' : 'var(--text-main)'};">
+                                ${formatCurrency(payment.value)}
+                            </div>
+                            ${!payment.paid && isOverdue ? 
+                                '<span style="color: var(--expense-color); font-size: 0.85rem; font-weight: 600;">VENCIDO</span>' : 
+                                ''
+                            }
+                        </div>
+                    `;
+                    
+                    container.appendChild(paymentElement);
+                    
+                    if (!payment.paid) hasUnpaid = true;
+                });
+                
+                if (!hasUnpaid) {
+                    container.innerHTML = '<p style="color: var(--text-sub); text-align: center;">Nenhuma conta a pagar</p>';
+                }
+            });
+        }
+
+        // Adicionar despesa
+        window.addExpense = async function() {
+            const item = document.getElementById('expItem').value;
+            const value = parseFloat(document.getElementById('expValue').value);
+            const category = document.getElementById('expCategory').value;
+            const date = document.getElementById('expDate').value || getCurrentDate();
+            
+            if (!item || !value || !category) {
+                alert("Preencha todos os campos obrigatórios!");
+                return;
+            }
+            
+            try {
+                await addDoc(collection(db, `users/${auth.currentUser.uid}/expenses`), { 
+                    item, 
+                    value, 
+                    category,
+                    date,
+                    month: selectedDate.month,
+                    year: selectedDate.year,
+                    createdAt: new Date().toISOString()
+                });
+                
+                // Limpar campos
+                document.getElementById('expItem').value = ''; 
+                document.getElementById('expValue').value = '';
+                document.getElementById('expCategory').value = '';
+                document.getElementById('expDate').value = '';
+                
+                alert("Despesa registrada com sucesso!");
+                loadCharts();
+            } catch (error) {
+                alert("Erro ao registrar despesa: " + error.message);
+            }
+        };
+
+        // Adicionar ganho
+        window.addIncome = async function() {
+            const item = document.getElementById('incItem').value;
+            const value = parseFloat(document.getElementById('incValue').value);
+            const category = document.getElementById('incCategory').value;
+            const date = document.getElementById('incDate').value || getCurrentDate();
+            
+            if (!item || !value || !category) {
+                alert("Preencha todos os campos obrigatórios!");
+                return;
+            }
+            
+            try {
+                await addDoc(collection(db, `users/${auth.currentUser.uid}/income`), { 
+                    item, 
+                    value, 
+                    category,
+                    date,
+                    month: selectedDate.month,
+                    year: selectedDate.year,
+                    createdAt: new Date().toISOString()
+                });
+                
+                // Limpar campos
+                document.getElementById('incItem').value = ''; 
+                document.getElementById('incValue').value = '';
+                document.getElementById('incCategory').value = '';
+                document.getElementById('incDate').value = '';
+                
+                alert("Ganho registrada com sucesso!");
+                loadCharts();
+            } catch (error) {
+                alert("Erro ao registrar ganho: " + error.message);
+            }
+        };
+
+        // Carregar metas
+        async function loadGoals() {
+            if (!auth.currentUser) return;
+            
+            // Carregar metas de despesas
+            const expenseGoalsRef = collection(db, `users/${auth.currentUser.uid}/expenseGoals`);
+            const expenseGoalsQuery = query(
+                expenseGoalsRef, 
+                where("month", "==", selectedDate.month),
+                where("year", "==", selectedDate.year)
+            );
+            
+            onSnapshot(expenseGoalsQuery, async (snapshot) => {
+                const container = document.getElementById('expenseGoalsList');
+                container.innerHTML = '';
+                
+                snapshot.forEach(doc => {
+                    const goal = doc.data();
+                    
+                    // Calcular despesas atuais desta categoria no mês
+                    calculateCurrentExpense(goal.category).then(currentAmount => {
+                        const progress = currentAmount > 0 ? Math.min((currentAmount / goal.target) * 100, 100) : 0;
+                        
+                        const goalCard = document.createElement('div');
+                        goalCard.className = 'goal-card';
+                        goalCard.innerHTML = `
+                            <div class="goal-header">
+                                <div>
+                                    <strong>${goal.category}</strong>
+                                    <div style="font-size: 0.9rem; color: var(--text-sub); margin-top: 5px;">
+                                        Meta: ${formatCurrency(goal.target)} | Atual: ${formatCurrency(currentAmount)}
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm btn-danger" onclick="deleteGoal('expense', '${doc.id}')">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                            <div class="goal-progress">
+                                <div class="goal-progress-bar" style="width: ${progress}%"></div>
+                            </div>
+                            <div style="font-size: 0.85rem; color: var(--text-sub); margin-top: 5px; text-align: right;">
+                                ${progress.toFixed(1)}% ${progress >= 100 ? '✅ Meta atingida!' : ''}
+                            </div>
+                        `;
+                        container.appendChild(goalCard);
+                    });
+                });
+                
+                if (snapshot.empty) {
+                    container.innerHTML = '<p style="color: var(--text-sub); text-align: center;">Nenhuma meta de despesa definida para este mês</p>';
+                }
+            });
+            
+            // Carregar metas de ganhos
+            const incomeGoalsRef = collection(db, `users/${auth.currentUser.uid}/incomeGoals`);
+            const incomeGoalsQuery = query(
+                incomeGoalsRef, 
+                where("month", "==", selectedDate.month),
+                where("year", "==", selectedDate.year)
+            );
+            
+            onSnapshot(incomeGoalsQuery, async (snapshot) => {
+                const container = document.getElementById('incomeGoalsList');
+                container.innerHTML = '';
+                
+                snapshot.forEach(doc => {
+                    const goal = doc.data();
+                    
+                    // Calcular ganhos atuais desta categoria no mês
+                    calculateCurrentIncome(goal.category).then(currentAmount => {
+                        const progress = currentAmount > 0 ? Math.min((currentAmount / goal.target) * 100, 100) : 0;
+                        
+                        const goalCard = document.createElement('div');
+                        goalCard.className = 'goal-card';
+                        goalCard.style.borderLeftColor = 'var(--income-color)';
+                        goalCard.innerHTML = `
+                            <div class="goal-header">
+                                <div>
+                                    <strong>${goal.category}</strong>
+                                    <div style="font-size: 0.9rem; color: var(--text-sub); margin-top: 5px;">
+                                        Meta: ${formatCurrency(goal.target)} | Atual: ${formatCurrency(currentAmount)}
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm btn-danger" onclick="deleteGoal('income', '${doc.id}')">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                            <div class="goal-progress">
+                                <div class="goal-progress-bar" style="width: ${progress}%; background: var(--income-color);"></div>
+                            </div>
+                            <div style="font-size: 0.85rem; color: var(--text-sub); margin-top: 5px; text-align: right;">
+                                ${progress.toFixed(1)}% ${progress >= 100 ? '✅ Meta atingida!' : ''}
+                            </div>
+                        `;
+                        container.appendChild(goalCard);
+                    });
+                });
+                
+                if (snapshot.empty) {
+                    container.innerHTML = '<p style="color: var(--text-sub); text-align: center;">Nenhuma meta de ganho definida para este mês</p>';
+                }
+            });
+        }
+
+        // Calcular despesa atual por categoria
+        async function calculateCurrentExpense(category) {
+            if (!auth.currentUser) return 0;
+            
+            const expensesRef = collection(db, `users/${auth.currentUser.uid}/expenses`);
+            const q = query(
+                expensesRef,
+                where("month", "==", selectedDate.month),
+                where("year", "==", selectedDate.year),
+                where("category", "==", category)
+            );
+            
+            try {
+                const snapshot = await getDocs(q);
+                let total = 0;
+                snapshot.forEach(doc => {
+                    total += doc.data().value;
+                });
+                return total;
+            } catch (error) {
+                console.error("Erro ao calcular despesas:", error);
+                return 0;
+            }
+        }
+
+        // Calcular ganho atual por categoria
+        async function calculateCurrentIncome(category) {
+            if (!auth.currentUser) return 0;
+            
+            const incomeRef = collection(db, `users/${auth.currentUser.uid}/income`);
+            const q = query(
+                incomeRef,
+                where("month", "==", selectedDate.month),
+                where("year", "==", selectedDate.year),
+                where("category", "==", category)
+            );
+            
+            try {
+                const snapshot = await getDocs(q);
+                let total = 0;
+                snapshot.forEach(doc => {
+                    total += doc.data().value;
+                });
+                return total;
+            } catch (error) {
+                console.error("Erro ao calcular ganhos:", error);
+                return 0;
+            }
+        }
+
+        // Adicionar meta de despesa (agora com modal)
+        window.addExpenseGoal = function() {
+            if (expenseCategories.length === 0) {
+                alert("Primeiro cadastre categorias de despesas!");
+                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                document.querySelector('.nav-link[data-page="data"]').classList.add('active');
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.getElementById('data').classList.add('active');
+                return;
+            }
+            
+            // Popular dropdown de categorias
+            const dropdown = document.getElementById('expenseGoalCategory');
+            dropdown.innerHTML = '<option value="">Selecione uma categoria</option>';
+            expenseCategories.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat.name;
+                option.textContent = cat.name;
+                dropdown.appendChild(option);
+            });
+            
+            // Limpar campos
+            document.getElementById('expenseGoalTarget').value = '';
+            
+            // Mostrar modal
+            document.getElementById('expenseGoalModal').style.display = 'flex';
+        };
+
+        // Adicionar meta de ganho (agora com modal)
+        window.addIncomeGoal = function() {
+            if (incomeCategories.length === 0) {
+                alert("Primeiro cadastre categorias de ganhos!");
+                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                document.querySelector('.nav-link[data-page="data"]').classList.add('active');
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.getElementById('data').classList.add('active');
+                return;
+            }
+            
+            // Popular dropdown de categorias
+            const dropdown = document.getElementById('incomeGoalCategory');
+            dropdown.innerHTML = '<option value="">Selecione uma categoria</option>';
+            incomeCategories.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat.name;
+                option.textContent = cat.name;
+                dropdown.appendChild(option);
+            });
+            
+            // Limpar campos
+            document.getElementById('incomeGoalTarget').value = '';
+            
+            // Mostrar modal
+            document.getElementById('incomeGoalModal').style.display = 'flex';
+        };
+
+        // Salvar meta de despesa
+        async function saveExpenseGoal() {
+            const category = document.getElementById('expenseGoalCategory').value;
+            const target = parseFloat(document.getElementById('expenseGoalTarget').value);
+            
+            if (!category || !target || target <= 0) {
+                alert("Preencha todos os campos corretamente!");
+                return;
+            }
+            
+            if (!expenseCategories.some(c => c.name === category)) {
+                alert("Categoria não encontrada! Cadastre-a primeiro em Dados > Categorias de Despesas.");
+                return;
+            }
+            
+            try {
+                await addDoc(collection(db, `users/${auth.currentUser.uid}/expenseGoals`), {
+                    category,
+                    target,
+                    month: selectedDate.month,
+                    year: selectedDate.year,
+                    createdAt: new Date().toISOString()
+                });
+                
+                closeExpenseGoalModal();
+                alert("Meta de despesa adicionada!");
+                loadCharts();
+            } catch (error) {
+                alert("Erro ao adicionar meta: " + error.message);
+            }
+        }
+
+        // Salvar meta de ganho
+        async function saveIncomeGoal() {
+            const category = document.getElementById('incomeGoalCategory').value;
+            const target = parseFloat(document.getElementById('incomeGoalTarget').value);
+            
+            if (!category || !target || target <= 0) {
+                alert("Preencha todos os campos corretamente!");
+                return;
+            }
+            
+            if (!incomeCategories.some(c => c.name === category)) {
+                alert("Categoria não encontrada! Cadastre-a primeiro em Dados > Categorias de Ganhos.");
+                return;
+            }
+            
+            try {
+                await addDoc(collection(db, `users/${auth.currentUser.uid}/incomeGoals`), {
+                    category,
+                    target,
+                    month: selectedDate.month,
+                    year: selectedDate.year,
+                    createdAt: new Date().toISOString()
+                });
+                
+                closeIncomeGoalModal();
+                alert("Meta de ganho adicionada!");
+                loadCharts();
+            } catch (error) {
+                alert("Erro ao adicionar meta: " + error.message);
+            }
+        }
+
+        // Fechar modais de metas
+        function closeExpenseGoalModal() {
+            document.getElementById('expenseGoalModal').style.display = 'none';
+        }
+
+        function closeIncomeGoalModal() {
+            document.getElementById('incomeGoalModal').style.display = 'none';
+        }
+
+        // Excluir meta
+        window.deleteGoal = async function(type, goalId) {
+            if (!confirm("Tem certeza que deseja excluir esta meta?")) return;
+            
+            try {
+                const collectionName = type === 'expense' ? 'expenseGoals' : 'incomeGoals';
+                await deleteDoc(doc(db, `users/${auth.currentUser.uid}/${collectionName}`, goalId));
+                alert("Meta excluída!");
+                loadCharts();
+            } catch (error) {
+                alert("Erro ao excluir meta: " + error.message);
+            }
+        }
+
+        // Carregar gráficos
+        async function loadCharts() {
+            if (!auth.currentUser) return;
+            
+            await loadExpenseChart();
+            await loadIncomeChart();
+            await loadEvolutionChart();
+        }
+
+        // Gráfico de Despesas vs Metas
+        async function loadExpenseChart() {
+            const expenseGoalsRef = collection(db, `users/${auth.currentUser.uid}/expenseGoals`);
+            const expenseGoalsQuery = query(
+                expenseGoalsRef, 
+                where("month", "==", selectedDate.month),
+                where("year", "==", selectedDate.year)
+            );
+            
+            try {
+                const snapshot = await getDocs(expenseGoalsQuery);
+                const goals = [];
+                const categories = [];
+                const metas = [];
+                const realizados = [];
+                
+                for (const doc of snapshot.docs) {
+                    const goal = doc.data();
+                    const currentAmount = await calculateCurrentExpense(goal.category);
+                    
+                    categories.push(goal.category);
+                    metas.push(goal.target);
+                    realizados.push(currentAmount);
+                    goals.push({ ...goal, currentAmount });
+                }
+                
+                const ctx = document.getElementById('expenseChart').getContext('2d');
+                
+                if (expenseChart) {
+                    expenseChart.destroy();
+                }
+                
+                if (goals.length === 0) {
+                    document.getElementById('noExpenseGoalsMessage').style.display = 'block';
+                    document.getElementById('expenseChart').style.display = 'none';
+                    return;
+                }
+                
+                document.getElementById('noExpenseGoalsMessage').style.display = 'none';
+                document.getElementById('expenseChart').style.display = 'block';
+                
+                expenseChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: categories,
+                        datasets: [
+                            {
+                                label: 'Meta',
+                                data: metas,
+                                backgroundColor: 'rgba(79, 70, 229, 0.6)',
+                                borderColor: 'rgba(79, 70, 229, 1)',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Realizado',
+                                data: realizados,
+                                backgroundColor: 'rgba(239, 68, 68, 0.6)',
+                                borderColor: 'rgba(239, 68, 68, 1)',
+                                borderWidth: 1
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        label += formatCurrency(context.raw);
+                                        return label;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return 'R$ ' + value.toLocaleString('pt-BR');
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Erro ao carregar gráfico de despesas:", error);
+            }
+        }
+
+        // Gráfico de Ganhos vs Metas
+        async function loadIncomeChart() {
+            const incomeGoalsRef = collection(db, `users/${auth.currentUser.uid}/incomeGoals`);
+            const incomeGoalsQuery = query(
+                incomeGoalsRef, 
+                where("month", "==", selectedDate.month),
+                where("year", "==", selectedDate.year)
+            );
+            
+            try {
+                const snapshot = await getDocs(incomeGoalsQuery);
+                const goals = [];
+                const categories = [];
+                const metas = [];
+                const realizados = [];
+                
+                for (const doc of snapshot.docs) {
+                    const goal = doc.data();
+                    const currentAmount = await calculateCurrentIncome(goal.category);
+                    
+                    categories.push(goal.category);
+                    metas.push(goal.target);
+                    realizados.push(currentAmount);
+                    goals.push({ ...goal, currentAmount });
+                }
+                
+                const ctx = document.getElementById('incomeChart').getContext('2d');
+                
+                if (incomeChart) {
+                    incomeChart.destroy();
+                }
+                
+                if (goals.length === 0) {
+                    document.getElementById('noIncomeGoalsMessage').style.display = 'block';
+                    document.getElementById('incomeChart').style.display = 'none';
+                    return;
+                }
+                
+                document.getElementById('noIncomeGoalsMessage').style.display = 'none';
+                document.getElementById('incomeChart').style.display = 'block';
+                
+                incomeChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: categories,
+                        datasets: [
+                            {
+                                label: 'Meta',
+                                data: metas,
+                                backgroundColor: 'rgba(16, 185, 129, 0.6)',
+                                borderColor: 'rgba(16, 185, 129, 1)',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Realizado',
+                                data: realizados,
+                                backgroundColor: 'rgba(79, 70, 229, 0.6)',
+                                borderColor: 'rgba(79, 70, 229, 1)',
+                                borderWidth: 1
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        label += formatCurrency(context.raw);
+                                        return label;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return 'R$ ' + value.toLocaleString('pt-BR');
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Erro ao carregar gráfico de ganhos:", error);
+            }
+        }
+
+        // Gráfico de Evolução Mensal
+        async function loadEvolutionChart() {
+            try {
+                // Obter os últimos 6 meses
+                const months = [];
+                const expenseTotals = [];
+                const expenseGoalTotals = [];
+                const incomeTotals = [];
+                const incomeGoalTotals = [];
+                
+                const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                
+                for (let i = 5; i >= 0; i--) {
+                    const date = new Date(selectedDate.year, selectedDate.month - 1 - i, 1);
+                    const month = date.getMonth() + 1;
+                    const year = date.getFullYear();
+                    const monthName = `${monthNames[date.getMonth()]}/${date.getFullYear()}`;
+                    
+                    months.push(monthName);
+                    
+                    // Calcular total de despesas do mês
+                    const expensesRef = collection(db, `users/${auth.currentUser.uid}/expenses`);
+                    const expensesQuery = query(
+                        expensesRef,
+                        where("month", "==", month),
+                        where("year", "==", year)
+                    );
+                    const expensesSnapshot = await getDocs(expensesQuery);
+                    let expenseTotal = 0;
+                    expensesSnapshot.forEach(doc => {
+                        expenseTotal += doc.data().value;
+                    });
+                    expenseTotals.push(expenseTotal);
+                    
+                    // Calcular total de metas de despesas do mês
+                    const expenseGoalsRef = collection(db, `users/${auth.currentUser.uid}/expenseGoals`);
+                    const expenseGoalsQuery = query(
+                        expenseGoalsRef,
+                        where("month", "==", month),
+                        where("year", "==", year)
+                    );
+                    const expenseGoalsSnapshot = await getDocs(expenseGoalsQuery);
+                    let expenseGoalTotal = 0;
+                    expenseGoalsSnapshot.forEach(doc => {
+                        expenseGoalTotal += doc.data().target;
+                    });
+                    expenseGoalTotals.push(expenseGoalTotal);
+                    
+                    // Calcular total de ganhos do mês
+                    const incomeRef = collection(db, `users/${auth.currentUser.uid}/income`);
+                    const incomeQuery = query(
+                        incomeRef,
+                        where("month", "==", month),
+                        where("year", "==", year)
+                    );
+                    const incomeSnapshot = await getDocs(incomeQuery);
+                    let incomeTotal = 0;
+                    incomeSnapshot.forEach(doc => {
+                        incomeTotal += doc.data().value;
+                    });
+                    incomeTotals.push(incomeTotal);
+                    
+                    // Calcular total de metas de ganhos do mês
+                    const incomeGoalsRef = collection(db, `users/${auth.currentUser.uid}/incomeGoals`);
+                    const incomeGoalsQuery = query(
+                        incomeGoalsRef,
+                        where("month", "==", month),
+                        where("year", "==", year)
+                    );
+                    const incomeGoalsSnapshot = await getDocs(incomeGoalsQuery);
+                    let incomeGoalTotal = 0;
+                    incomeGoalsSnapshot.forEach(doc => {
+                        incomeGoalTotal += doc.data().target;
+                    });
+                    incomeGoalTotals.push(incomeGoalTotal);
+                }
+                
+                const ctx = document.getElementById('evolutionChart').getContext('2d');
+                
+                if (evolutionChart) {
+                    evolutionChart.destroy();
+                }
+                
+                // Verificar se há dados para mostrar
+                const hasData = expenseTotals.some(total => total > 0) || 
+                               expenseGoalTotals.some(total => total > 0) ||
+                               incomeTotals.some(total => total > 0) ||
+                               incomeGoalTotals.some(total => total > 0);
+                
+                if (!hasData) {
+                    document.getElementById('noEvolutionDataMessage').style.display = 'block';
+                    document.getElementById('evolutionChart').style.display = 'none';
+                    return;
+                }
+                
+                document.getElementById('noEvolutionDataMessage').style.display = 'none';
+                document.getElementById('evolutionChart').style.display = 'block';
+                
+                evolutionChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: months,
+                        datasets: [
+                            {
+                                label: 'Meta Despesas',
+                                data: expenseGoalTotals,
+                                borderColor: 'rgba(79, 70, 229, 0.8)',
+                                backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                                borderWidth: 2,
+                                tension: 0.3
+                            },
+                            {
+                                label: 'Despesas Realizadas',
+                                data: expenseTotals,
+                                borderColor: 'rgba(239, 68, 68, 0.8)',
+                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                borderWidth: 2,
+                                tension: 0.3
+                            },
+                            {
+                                label: 'Meta Ganhos',
+                                data: incomeGoalTotals,
+                                borderColor: 'rgba(16, 185, 129, 0.8)',
+                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                borderWidth: 2,
+                                tension: 0.3
+                            },
+                            {
+                                label: 'Ganhos Realizados',
+                                data: incomeTotals,
+                                borderColor: 'rgba(79, 70, 229, 0.5)',
+                                backgroundColor: 'rgba(79, 70, 229, 0.05)',
+                                borderWidth: 2,
+                                tension: 0.3,
+                                borderDash: [5, 5]
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false,
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        label += formatCurrency(context.raw);
+                                        return label;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return 'R$ ' + value.toLocaleString('pt-BR');
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Erro ao carregar gráfico de evolução:", error);
+            }
+        }
+
+        // Funções de backup e importação
+        window.exportToExcel = async function() {
+            if (!auth.currentUser) return;
+            
+            try {
+                // Coletar todos os dados
+                const data = {
+                    expenses: [],
+                    income: [],
+                    payments: [],
+                    expenseCategories: [],
+                    incomeCategories: [],
+                    expenseGoals: [],
+                    incomeGoals: [],
+                    exportDate: new Date().toISOString(),
+                    exportUser: auth.currentUser.email
+                };
+                
+                // Coletar despesas
+                const expensesSnapshot = await getDocs(collection(db, `users/${auth.currentUser.uid}/expenses`));
+                expensesSnapshot.forEach(doc => data.expenses.push({ id: doc.id, ...doc.data() }));
+                
+                // Coletar ganhos
+                const incomeSnapshot = await getDocs(collection(db, `users/${auth.currentUser.uid}/income`));
+                incomeSnapshot.forEach(doc => data.income.push({ id: doc.id, ...doc.data() }));
+                
+                // Coletar pagamentos
+                const paymentsSnapshot = await getDocs(collection(db, `users/${auth.currentUser.uid}/payments`));
+                paymentsSnapshot.forEach(doc => data.payments.push({ id: doc.id, ...doc.data() }));
+                
+                // Coletar categorias
+                const expenseCatSnapshot = await getDocs(collection(db, `users/${auth.currentUser.uid}/expenseCategories`));
+                expenseCatSnapshot.forEach(doc => data.expenseCategories.push({ id: doc.id, ...doc.data() }));
+                
+                const incomeCatSnapshot = await getDocs(collection(db, `users/${auth.currentUser.uid}/incomeCategories`));
+                incomeCatSnapshot.forEach(doc => data.incomeCategories.push({ id: doc.id, ...doc.data() }));
+                
+                // Coletar metas
+                const expenseGoalsSnapshot = await getDocs(collection(db, `users/${auth.currentUser.uid}/expenseGoals`));
+                expenseGoalsSnapshot.forEach(doc => data.expenseGoals.push({ id: doc.id, ...doc.data() }));
+                
+                const incomeGoalsSnapshot = await getDocs(collection(db, `users/${auth.currentUser.uid}/incomeGoals`));
+                incomeGoalsSnapshot.forEach(doc => data.incomeGoals.push({ id: doc.id, ...doc.data() }));
+                
+                // Converter para JSON e criar blob
+                const jsonString = JSON.stringify(data, null, 2);
+                const blob = new Blob([jsonString], { type: 'application/json' });
+                
+                // Criar link de download
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `backup_financeiro_${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                alert("Backup exportado com sucesso!");
+            } catch (error) {
+                alert("Erro ao exportar backup: " + error.message);
+            }
+        };
+
+        // Abrir modal de importação
+        window.openImportModal = function() {
+            document.getElementById('importModal').style.display = 'flex';
+        };
+
+        // Fechar modal de importação
+        function closeImportModal() {
+            document.getElementById('importModal').style.display = 'none';
+            document.getElementById('importFile').value = '';
+        }
+
+        // Processar importação
+        async function processImport() {
+            const fileInput = document.getElementById('importFile');
+            const importType = document.getElementById('importType').value;
+            
+            if (!fileInput.files[0]) {
+                alert("Selecione um arquivo para importar!");
+                return;
+            }
+            
+            if (!confirm(`Deseja importar dados de ${importType}? Isso pode adicionar registros duplicados.`)) return;
+            
+            try {
+                const file = fileInput.files[0];
+                const reader = new FileReader();
+                
+                reader.onload = async function(e) {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        await importData(data, importType);
+                    } catch (error) {
+                        alert("Erro ao ler arquivo JSON: " + error.message);
+                    }
+                };
+                
+                reader.readAsText(file);
+            } catch (error) {
+                alert("Erro ao importar dados: " + error.message);
+            }
+        }
+
+        // Importar dados
+        async function importData(data, type) {
+            if (!auth.currentUser) return;
+            
+            try {
+                const batch = writeBatch(db);
+                let importedCount = 0;
+                
+                // Determinar qual coleção importar
+                let items = [];
+                let collectionName = '';
+                
+                switch(type) {
+                    case 'expenses':
+                        items = data.expenses || [];
+                        collectionName = 'expenses';
+                        break;
+                    case 'income':
+                        items = data.income || [];
+                        collectionName = 'income';
+                        break;
+                    case 'payments':
+                        items = data.payments || [];
+                        collectionName = 'payments';
+                        break;
+                    case 'expenseCategories':
+                        items = data.expenseCategories || [];
+                        collectionName = 'expenseCategories';
+                        break;
+                    case 'incomeCategories':
+                        items = data.incomeCategories || [];
+                        collectionName = 'incomeCategories';
+                        break;
+                }
+                
+                // Importar itens
+                for (const item of items) {
+                    // Remover ID antigo para criar novo documento
+                    const { id, ...itemData } = item;
+                    const docRef = doc(collection(db, `users/${auth.currentUser.uid}/${collectionName}`));
+                    batch.set(docRef, {
+                        ...itemData,
+                        importedAt: new Date().toISOString()
+                    });
+                    importedCount++;
+                }
+                
+                await batch.commit();
+                closeImportModal();
+                alert(`${importedCount} registros importados com sucesso para ${type}!`);
+                
+                // Recarregar gráficos
+                loadCharts();
+                
+            } catch (error) {
+                alert("Erro ao importar dados: " + error.message);
+            }
+        }
+
+        // Excluir dados
+        window.deleteData = async (path, id) => {
+            if (confirm("Eliminar registo?")) {
+                await deleteDoc(doc(db, `users/${auth.currentUser.uid}/${path}`, id));
+                loadCharts();
+            }
+        };
+
+        // Sincronizar despesas e ganhos
+        function sync(path, tableId) {
+            if (!auth.currentUser) return;
+            
+            const q = query(
+                collection(db, `users/${auth.currentUser.uid}/${path}`), 
+                orderBy("date", "desc")
+            );
+            
+            onSnapshot(q, (snap) => {
+                const tbody = document.getElementById(tableId);
+                tbody.innerHTML = '';
+                let total = 0;
+                
+                snap.forEach(d => {
+                    const data = d.data();
+                    if (data.month === selectedDate.month && data.year === selectedDate.year) {
+                        total += data.value;
+                        tbody.innerHTML += `<tr>
+                            <td>${data.item}</td>
+                            <td><span class="category-badge">${data.category || 'Sem categoria'}</span></td>
+                            <td class="amount ${path === 'expenses' ? 'expense' : 'income'}">${formatCurrency(data.value)}</td>
+                            <td>${data.date}</td>
+                            <td><button onclick="deleteData('${path}', '${d.id}')" class="btn btn-sm btn-danger"><i class="fa-solid fa-trash"></i></button></td>
+                        </tr>`;
+                    }
+                });
+                
+                if (total > 0) {
+                    tbody.innerHTML += `<tr style="background: #f8fafc;">
+                        <td><strong>Total</strong></td>
+                        <td></td>
+                        <td class="amount ${path === 'expenses' ? 'expense' : 'income'}"><strong>${formatCurrency(total)}</strong></td>
+                        <td colspan="2"></td>
+                    </tr>`;
+                }
+            });
+        }
+
+        // Autenticação
+        window.toggleAuthMode = () => {
+            isLoginMode = !isLoginMode;
+            document.getElementById('authTitle').innerText = isLoginMode ? 'Entrar no Sistema' : 'Criar Conta';
+            document.getElementById('mainAuthBtn').innerText = isLoginMode ? 'Entrar' : 'Cadastrar';
+            document.getElementById('authFooter').innerHTML = isLoginMode ? 
+                'Não tem conta? <span onclick="toggleAuthMode()" style="color: var(--primary-color); cursor: pointer;">Criar conta</span>' : 
+                'Já tem conta? <span onclick="toggleAuthMode()" style="color: var(--primary-color); cursor: pointer;">Entrar</span>';
+        };
+
+        window.handleAuth = async () => {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            try {
+                if (isLoginMode) await signInWithEmailAndPassword(auth, email, password);
+                else await createUserWithEmailAndPassword(auth, email, password);
+            } catch (e) { alert("Erro: " + e.message); }
+        };
+
+        window.forgotPassword = async () => {
+            const email = document.getElementById('email').value;
+            if (!email) return alert("Insira o e-mail primeiro.");
+            try { await sendPasswordResetEmail(auth, email); alert("E-mail de recuperação enviado!"); } 
+            catch (e) { alert("Erro: " + e.message); }
+        };
+
+        window.logout = () => signOut(auth);
+
+        onAuthStateChanged(auth, (user) => {
+            document.getElementById('authScreen').style.display = user ? 'none' : 'flex';
+            if (user) {
+                document.getElementById('userName').textContent = user.email.split('@')[0];
+                initApp();
+            }
+        });
+
+        // UI
+        document.getElementById('menuToggleBtn').onclick = (e) => {
+            e.stopPropagation();
+            document.getElementById('sidebar').classList.toggle('expanded');
+            document.getElementById('overlay').classList.toggle('active');
+            closeNotifications();
+        };
+
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.onclick = (e) => {
+                e.preventDefault();
+                const page = link.getAttribute('data-page');
+                if (!page) return;
+                
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.getElementById(page).classList.add('active');
+                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+                
+                closeSidebar();
+                closeNotifications();
+                
+                if (page === 'dashboard') {
+                    loadCharts();
+                }
+            };
+        });
+
+        function initApp() {
+            // Data atual compacta no cabeçalho
+            const now = new Date();
+            const options = { day: 'numeric', month: 'short' };
+            document.getElementById('currentDate').innerText = now.toLocaleDateString('pt-BR', options);
+            
+            // Inicializar seletor de datas
+            initializeDateSelector();
+            
+            // Carregar categorias
+            loadCategories();
+            
+            // Sincronizar dados
+            sync("expenses", "expensesTable");
+            sync("income", "incomeTable");
+            syncPayments();
+            
+            // Carregar metas
+            loadGoals();
+            
+            // Carregar gráficos
+            loadCharts();
+            
+            // Verificar notificações
+            checkDuePaymentsNotifications();
+            
+            // Verificar notificações a cada hora
+            setInterval(checkDuePaymentsNotifications, 3600000);
+            
+            // Configurar datas padrão nos formulários
+            document.getElementById('expDate').value = getCurrentDate();
+            document.getElementById('incDate').value = getCurrentDate();
+            document.getElementById('paymentDueDate').value = getCurrentDate();
+        }
+
+        // Fechar sidebar e modais ao clicar fora
+        document.addEventListener('click', function(e) {
+            const sidebar = document.getElementById('sidebar');
+            const menuToggle = document.getElementById('menuToggleBtn');
+            const notificationBadge = document.getElementById('notificationBadge');
+            const notificationModal = document.getElementById('notificationModal');
+            const expenseGoalModal = document.getElementById('expenseGoalModal');
+            const incomeGoalModal = document.getElementById('incomeGoalModal');
+            const importModal = document.getElementById('importModal');
+            
+            if (!sidebar.contains(e.target) && !menuToggle.contains(e.target)) {
+                closeSidebar();
+            }
+            
+            if (!notificationModal.contains(e.target) && !notificationBadge.contains(e.target)) {
+                closeNotifications();
+            }
+            
+            // Fechar modais ao clicar fora
+            if (expenseGoalModal.style.display === 'flex' && !e.target.closest('.modal-content')) {
+                closeExpenseGoalModal();
+            }
+            
+            if (incomeGoalModal.style.display === 'flex' && !e.target.closest('.modal-content')) {
+                closeIncomeGoalModal();
+            }
+            
+            if (importModal.style.display === 'flex' && !e.target.closest('.modal-content')) {
+                closeImportModal();
+            }
+        });
+    </script>
+</body>
+</html>
